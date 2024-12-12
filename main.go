@@ -87,28 +87,6 @@ func shutdownDevbox(devboxName string, namespace string) error {
 
 func main() {
 	r := gin.Default()
-
-	r.GET("/generate-token", func(c *gin.Context) {
-		// 创建JWT Token
-		expirationTime := time.Now().Add(5 * time.Minute)
-		claims := &Claims{
-			DevboxName: "wpy-test-dynamic",
-			NameSpace:  "default",
-			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: expirationTime.Unix(),
-				Issuer:    "gin-jwt-example",
-			},
-		}
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		tokenString, err := token.SignedString(secretKey)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"token": tokenString})
-	})
-
 	r.GET("/operation", func(c *gin.Context) {
 
 		tokenString := c.DefaultQuery("jwt", "")
