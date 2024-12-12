@@ -19,10 +19,8 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
-// 用于定义JWT的密钥
 var secretKey = []byte("your_secret_key")
 
-// Claims 定义 JWT 的结构
 type Claims struct {
 	DevboxName string `json:"devbox_name"`
 	NameSpace  string `json:"namespace"`
@@ -44,43 +42,33 @@ func getK8sClient() (dynamic.Interface, error) {
 	return dynamicClient, nil
 }
 
-func updateCRDResource() error {
+func shutdownDevbox(devboxName string, namespace string) error {
 	dynamicClient, err := getK8sClient()
 	if err != nil {
 		return err
 	}
 
-	// 获取 CRD 资源
-	// 使用 schema.GroupVersionResource 替换 metav1.GroupVersionResource
-
-	// 定义 GroupVersionResource
-
 	gvr := schema.GroupVersionResource{
-		Group:    "example.com", // CRD 的 API 组
-		Version:  "v1",          // CRD 的版本
-		Resource: "myresources", // CRD 的资源名称
+		Group:    "devbox.sealos.io",
+		Version:  "v1alpha1",
+		Resource: "devboxes",
 	}
 
-	// 使用 dynamicClient 获取 CRD 资源的客户端
-	resourceClient := dynamicClient.Resource(gvr).Namespace("default")
+	resourceClient := dynamicClient.Resource(gvr).Namespace(namespace)
 
-	// 获取 CRD 资源
-	crdResource, err := resourceClient.Get(context.TODO(), "myresource-name", metav1.GetOptions{})
+	crdResource, err := resourceClient.Get(context.TODO(), devboxName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get resource: %v", err)
 	}
 
-	crdResource, err = resourceClient.Get(context.TODO(), "myresource-name", metav1.GetOptions{})
+	crdResource, err = resourceClient.Get(context.TODO(), devboxName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get resource: %v", err)
 	}
 
-	// 假设我们要修改 spec.someField 字段
-	// 修改 CRD 资源的某个字段
-	unstructuredObj := crdResource.DeepCopy() // 克隆资源对象
-	unstructuredObj.Object["spec"].(map[string]interface{})["someField"] = "new value"
+	unstructuredObj := crdResource.DeepCopy()
+	unstructuredObj.Object["spec"].(map[string]interface{})["state"] = "Stopped"
 
-	// 使用重试机制进行更新
 	err = retry.OnError(wait.Backoff{
 		Duration: 1 * time.Second,
 		Factor:   2.0,
@@ -97,28 +85,14 @@ func updateCRDResource() error {
 	return nil
 }
 
-// 自定义的重试机制
-func retryOnError(retries int, delay time.Duration, fn func() error) error {
-	for i := 0; i < retries; i++ {
-		err := fn()
-		if err == nil {
-			return nil
-		}
-		log.Printf("Attempt %d failed: %v", i+1, err)
-		time.Sleep(delay)
-	}
-	return fmt.Errorf("all attempts failed")
-}
-
 func main() {
 	r := gin.Default()
 
-	// 生成一个简单的 JWT token
 	r.GET("/generate-token", func(c *gin.Context) {
 		// 创建JWT Token
 		expirationTime := time.Now().Add(5 * time.Minute)
 		claims := &Claims{
-			DevboxName: "devbox01",
+			DevboxName: "wpy-test-dynamic",
 			NameSpace:  "default",
 			StandardClaims: jwt.StandardClaims{
 				ExpiresAt: expirationTime.Unix(),
@@ -135,28 +109,23 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"token": tokenString})
 	})
 
-	// 校验 JWT 并执行操作的接口
 	r.GET("/operation", func(c *gin.Context) {
-		// 获取请求中的 token
+
 		tokenString := c.DefaultQuery("jwt", "")
+		operation := c.DefaultQuery("operation", "")
 
 		if tokenString == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "JWT token is required"})
 			return
 		}
-
-		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
+		claims := &Claims{}
+		_, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return secretKey, nil
 		})
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
-
-		operation := c.DefaultQuery("operation", "")
 		if operation == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "operation parameter is required"})
 			return
@@ -165,8 +134,10 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "operation type is error"})
 		}
 
-		// 处理 operation
-
+		err = shutdownDevbox(claims.DevboxName, claims.NameSpace)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"message": fmt.Sprintf("Operation received: %s", operation),
 		})
