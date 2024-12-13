@@ -43,6 +43,7 @@ func getK8sClient() (dynamic.Interface, error) {
 }
 
 func shutdownDevbox(devboxName string, namespace string) error {
+	log.Println("send message，begin to shutdown server" + devboxName + namespace)
 	dynamicClient, err := getK8sClient()
 	if err != nil {
 		return err
@@ -101,14 +102,17 @@ func main() {
 			return secretKey, nil
 		})
 		if err != nil {
+			log.Println(err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
 		if operation == "" {
+			log.Println("operation parameter is required")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "operation parameter is required"})
 			return
 		}
 		if operation != "shutdown" {
+			log.Println("operation type is error")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "operation type is error"})
 		}
 

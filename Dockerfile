@@ -1,5 +1,5 @@
 # 使用官方 Golang 镜像作为基础镜像
-FROM golang:1.21-alpine
+FROM golang:1.22-alpine
 
 # 设置工作目录
 WORKDIR /app
@@ -12,7 +12,7 @@ RUN go mod tidy
 COPY . .
 
 # 编译 Go 应用
-RUN go build -o main .
+RUN GOOS=linux GOARCH=amd64 go build -o main .
 
 # 暴露应用的端口
 EXPOSE 8082
