@@ -86,13 +86,24 @@ func shutdownDevbox(devboxName string, namespace string) error {
 	return nil
 }
 
+type req struct {
+	Jwt       string `json:"jwt"`
+	Operation string `json:"operation"`
+}
+
 func main() {
 	r := gin.Default()
 	r.POST("/opsrequest", func(c *gin.Context) {
-
-		tokenString := c.DefaultQuery("jwt", "")
-		operation := c.DefaultQuery("operation", "")
-
+		fmt.Printf("Request URL: %s\n", c.Request.URL.String()) // 完整 U
+		var req req
+		if err := c.BindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "JWT token is required"})
+			return
+		}
+		tokenString := req.Jwt
+		operation := req.Operation
+		fmt.Println(tokenString)
+		fmt.Println(operation)
 		if tokenString == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "JWT token is required"})
 			return
@@ -101,6 +112,7 @@ func main() {
 		_, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return secretKey, nil
 		})
+		fmt.Println(claims)
 		if err != nil {
 			log.Println(err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
