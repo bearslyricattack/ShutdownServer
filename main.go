@@ -88,7 +88,7 @@ func shutdownDevbox(devboxName string, namespace string) error {
 
 func main() {
 	r := gin.Default()
-	r.GET("/opsrequest", func(c *gin.Context) {
+	r.POST("/opsrequest", func(c *gin.Context) {
 
 		tokenString := c.DefaultQuery("jwt", "")
 		operation := c.DefaultQuery("operation", "")
