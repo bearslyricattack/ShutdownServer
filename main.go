@@ -87,7 +87,7 @@ func shutdownDevbox(devboxName string, namespace string) error {
 }
 
 type req struct {
-	Jwt       string `json:"jwt"`
+	Jwt       string `json:"jwt_token"`
 	Operation string `json:"operation"`
 }
 
