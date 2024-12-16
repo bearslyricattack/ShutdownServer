@@ -3,27 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 	"log"
 	"net/http"
 	"time"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
 )
-
-var secretKey = []byte("your_secret_key")
-
-type Claims struct {
-	DevboxName string `json:"devbox_name"`
-	NameSpace  string `json:"namespace"`
-	jwt.StandardClaims
-}
 
 func getK8sClient() (dynamic.Interface, error) {
 	kubeconfig := "/etc/kubeconfig/my-kubeconfig"
@@ -106,19 +97,8 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "JWT token is required"})
 			return
 		}
-		secretKey := []byte("sealos-devbox-shutdown") // 替换为生成时的密钥
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return secretKey, nil
-		})
-		// 检查 Token 是否有效
-		if !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
+
+		claims, err := ParseJWT(tokenString)
 
 		if operation == "" {
 			log.Println("operation parameter is required")
@@ -144,4 +124,34 @@ func main() {
 	})
 
 	r.Run(":8082")
+}
+
+type DevboxClaims struct {
+	DevboxName string `json:"devbox_name"`
+	NameSpace  string `json:"namespace"`
+	jwt.RegisteredClaims
+}
+
+var jwtSecret = []byte("sealos-devbox-shutdown")
+
+// 解析和验证 JWT
+func ParseJWT(tokenString string) (*DevboxClaims, error) {
+	// 解析和验证 JWT
+	token, err := jwt.ParseWithClaims(tokenString, &DevboxClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// 验证签名方法是否匹配
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return jwtSecret, nil
+	})
+	// 检查解析过程是否有误
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+	// 转换 claims 类型为自定义声明
+	claims, ok := token.Claims.(*DevboxClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+	return claims, nil
 }
