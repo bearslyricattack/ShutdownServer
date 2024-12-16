@@ -11,12 +11,10 @@ import (
 	"k8s.io/client-go/util/retry"
 	"log"
 	"net/http"
-	"path/filepath"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 )
 
 var secretKey = []byte("your_secret_key")
@@ -28,7 +26,7 @@ type Claims struct {
 }
 
 func getK8sClient() (dynamic.Interface, error) {
-	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
+	kubeconfig := "/etc/kubeconfig/my-kubeconfig"
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not get kubeconfig: %v", err)
@@ -119,6 +117,7 @@ func main() {
 		// 检查 Token 是否有效
 		if !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
 		}
 
 		if operation == "" {
@@ -129,15 +128,19 @@ func main() {
 		if operation != "shutdown" {
 			log.Println("operation type is error")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "operation type is error"})
+			return
 		}
 
 		err = shutdownDevbox(claims.DevboxName, claims.NameSpace)
 		if err != nil {
+			fmt.Println(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"message": fmt.Sprintf("Operation received: %s", operation),
+			})
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"message": fmt.Sprintf("Operation received: %s", operation),
-		})
 	})
 
 	r.Run(":8082")
