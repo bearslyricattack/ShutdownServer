@@ -27,6 +27,7 @@ type Claims struct {
 
 func getK8sClient() (dynamic.Interface, error) {
 	kubeconfig := "/etc/kubeconfig/my-kubeconfig"
+	fmt.Println("尝试获取kubeconfig", kubeconfig)
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not get kubeconfig: %v", err)
@@ -36,7 +37,6 @@ func getK8sClient() (dynamic.Interface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create dynamic client: %v", err)
 	}
-
 	return dynamicClient, nil
 }
 
