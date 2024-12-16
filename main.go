@@ -108,16 +108,19 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "JWT token is required"})
 			return
 		}
+		secretKey := []byte("sealos-devbox-shutdown") // 替换为生成时的密钥
 		claims := &Claims{}
-		_, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return secretKey, nil
 		})
-		fmt.Println(claims)
-		if err != nil {
-			log.Println(err)
+		// 检查 Token 是否有效
+		if !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
 		}
+
 		if operation == "" {
 			log.Println("operation parameter is required")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "operation parameter is required"})
