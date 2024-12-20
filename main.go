@@ -17,7 +17,7 @@ import (
 )
 
 func getK8sClient() (dynamic.Interface, error) {
-	kubeconfig := "/etc/kubeconfig/my-kubeconfig"
+	kubeconfig := "/etc/kubeconfig"
 	fmt.Println("尝试获取kubeconfig", kubeconfig)
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
@@ -99,7 +99,11 @@ func main() {
 		}
 
 		claims, err := ParseJWT(tokenString)
-
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "JWT token is invalid"})
+			return
+		}
+		fmt.Printf("11111,%s\n", claims)
 		if operation == "" {
 			log.Println("operation parameter is required")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "operation parameter is required"})
@@ -111,7 +115,9 @@ func main() {
 			return
 		}
 
+		fmt.Println(claims)
 		err = shutdownDevbox(claims.DevboxName, claims.NameSpace)
+
 		if err != nil {
 			fmt.Println(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
